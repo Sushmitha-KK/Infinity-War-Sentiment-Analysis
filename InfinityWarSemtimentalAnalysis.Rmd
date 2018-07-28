@@ -1,0 +1,153 @@
+---
+title: "Infinity War Sentimental Analysis"
+author: "Sushmitha K"
+date: "June 5, 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+#libraries
+library(twitteR)
+library(ROAuth)
+library(RCurl)
+library(dplyr)
+library(httr)
+
+library(tm)
+library(wordcloud)
+library(RColorBrewer)
+library(ggplot2)
+library(stringr)
+library(plyr)
+```
+
+```{r message=FALSE, warning=FALSE, include=FALSE}
+#connecting to twitter
+Consumer_Key =  "lDbdmlEUSUcGxXAFpfFhQo6iM"
+Consumer_Secret = "VwLeuh7Q8r2jexSLIPBsq5RjuYdeOkjKDC29ZkPaKLe1ebAlK8"
+
+Access_Token =  "964407088427409409-Kh96hOgVR5X7Gz5plT7FQtrUvgKnLQy"
+Access_Token_Secret =  "1doWUpWh5gcEdHkiXSySx5hRJAH8PGkeOUshNXwZb3Hz4" 
+
+setup_twitter_oauth(Consumer_Key,Consumer_Secret,Access_Token,Access_Token_Secret)
+
+
+```
+
+
+```{r}
+#getting tweets with hashtage name
+
+infinity_war = searchTwitter("#infinitywar", n = 1000,lang = "en")
+
+
+```
+
+
+```{r message=FALSE, warning=FALSE}
+#converting it to data frame
+
+infinity_war = twListToDF(infinity_war)
+
+
+#Saving the dataset into a csv file
+
+write.csv(infinity_war,"E:/Extra/Twitter/Data Sets/infinity_war.csv")
+```
+
+
+```{r message=FALSE, warning=FALSE, paged.print=FALSE}
+#importing positive and negative words
+
+pos <- read.delim("E:/Extra/Twitter/positive_words.txt")
+colnames(pos) <- "wordlist"
+
+
+
+neg <- read.delim("E:/Extra/Twitter/negative_words.txt")
+colnames(neg) <- "wordlist"
+
+
+sentences <- infinity_war$text
+
+
+```
+
+
+```{r message=FALSE, warning=FALSE}
+#word cloud
+
+sentences = gsub('[^A-z ]','', sentences)
+sentences = tolower(sentences)
+word_list = str_split(sentences, '\\s+')
+words = unlist(word_list)
+length(words)
+
+tab <- table(words)
+tabdf <- as.data.frame(tab)
+tab2 <- tabdf %>% arrange(-Freq)
+dim(tab2)
+val <- stopwords()
+tab3 <- tab2 %>% filter(!words %in% val)
+tab3 <- tab3 %>% filter(words!= 'rt')
+# View(tab3)
+
+#top_ten most tweeted words
+
+tab3 %>% head(10) %>%  ggplot(aes(x = reorder(words,-Freq),y = Freq))+geom_bar(stat = "identity",fill="navyblue")+xlab("Words")+theme_bw()
+```
+
+
+```{r}
+#wordcloud
+wordcloud (words=tab3$words,freq=tab3$Freq,min.freq=1,max.words=80, colors=brewer.pal(8, "Dark2"))
+
+```
+
+
+```{r message=FALSE, warning=FALSE}
+#sentiment score function
+
+score_sentiment = function(sentences, pos, neg, .progress='none')
+  {
+    scores = laply(sentences, function(sentences, pos , neg) {
+      sentences = gsub('[^A-z ]','', sentences)
+      sentences = tolower(sentences)
+      word_list = str_split(sentences, '\\s+')
+      words = unlist(word_list)
+      pos_matches = match(words, pos)
+      neg_matches = match(words, neg)
+      pos_matches = !is.na(pos_matches)
+      neg_matches = !is.na(neg_matches)
+      score = sum(pos_matches) - sum(neg_matches)
+      return(score)
+    }, pos, neg, .progress=.progress )
+    scores_df = data.frame(score=scores, text=sentences)
+    return(scores_df)
+}
+
+
+scores_df <- score_sentiment(sentences,pos$wordlist,neg$wordlist)
+
+
+scores_df$emotion <- ifelse(scores_df$score > 0,1,ifelse(scores_df$score<0,-1,0))
+
+
+# Number of Positive Reactions on Infinity War
+sum(scores_df$score > 0)
+
+
+# Number of Negative Reactions on Infinity War
+sum(scores_df$score < 0)
+
+
+# Neutral reactions on Infinity War
+sum(scores_df$score == 0)
+
+
+hist(scores_df$score)
+
+```
+
